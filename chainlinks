@@ -6,17 +6,36 @@
 #the first one is going to be the number of links generated per subdirectories
 #the second one is going to be the depth of the subdirectory chain
 #chainlinks 5 5 generates a chain of symlinks in a way that 1306 symlinks need to be resolved to get to the actual file referenced (unless you use some elaborate mapping to deal with chains and multiple traversals of the same symlinks)
+#for chainlinks 6 6 this number pops up to 50431
+#
 #so this is how it's used:
 #$ rm -r abcmy*
 #$ pwd
 #/tmp
-#$ ./chainlinks 5 5
+#$ ./chainlinks 6 6
 #$ cat abcmywhatsthis.txt
 #cat: abcmywhatsthis.txt: Too many levels of symbolic links
-#$ readlink -f abcmywhatsthis.txt
-#/tmp/abcmydir/abcmydir/abcmydir/abcmydir/abcmydir/abcmyfile.txt
+#$ time readlink -f abcmywhatsthis.txt
+#/tmp/abcmydir/abcmydir/abcmydir/abcmydir/abcmydir/abcmydir/abcmyfile.txt
+#
+#real  0m3,228s
+#user  0m2,283s
+#sys   0m0,945s
 #$ cat `readlink -f abcmywhatsthis.txt`
 #Hello symlinked world!
+#$ rm -r abcmy*
+#$ ./chainlinks 7 7
+#$ time readlink -f abcmywhatsthis.txt
+#/tmp/abcmydir/abcmydir/abcmydir/abcmydir/abcmydir/abcmydir/abcmydir/abcmyfile.txt
+#
+#real  1m13,051s
+#user  0m53,812s
+#sys   0m19,235s
+#$ rm -r abcmy*
+#$ ./chainlinks 10 10
+#$ du -hc abcmy*|grep total
+#348K  total
+
 
 function isnum()
 {
