@@ -1,0 +1,93 @@
+#!/bin/bash -eu
+
+#so I needed to test something with a symlink chain, after a while I figured it's going to be quicker to write a script for it than generating symlinks by hand
+#you need to provide 2 positive integer numbers as commandline parameters like this:
+#$ chainlinks 3 4
+#the first one is going to be the number of links generated per subdirectories
+#the second one is going to be the depth of the subdirectory chain
+#chainlinks 5 5 generates a chain of symlinks in a way that 1306 symlinks need to be resolved to get to the actual file referenced (unless you use some elaborate mapping to deal with chains and multiple traversals of the same symlinks)
+#so this is how it's used:
+#$ rm -r abcmy*
+#$ pwd
+#/tmp
+#$ ./chainlinks 5 5
+#$ cat abcmywhatsthis.txt
+#cat: abcmywhatsthis.txt: Too many levels of symbolic links
+#$ readlink -f abcmywhatsthis.txt
+#/tmp/abcmydir/abcmydir/abcmydir/abcmydir/abcmydir/abcmyfile.txt
+#$ cat `readlink -f abcmywhatsthis.txt`
+#Hello symlinked world!
+
+function isnum()
+{
+  local ret=0
+  echo "$1"|grep -qE '^(0|[1-9][0-9]*)$' || ret=$?
+
+  if [[ $ret -ne 0 ]]
+   then
+    echo "$2 needs to be a number!" >&2
+    exit 1
+   fi
+
+  if [[ ( $# -gt 2 ) && ( $1 -lt $3 )]]
+   then
+    echo "$2 needs to be greater than $3!" >&2
+    exit 1
+   fi
+}
+
+function chainlinks()
+{
+  local prefix=abcmy
+  #we know for sure that none of my variables will contain any characters which bash is sensitive to, therefore I can safely refrain from quoting anything:
+  local linkcount=$1
+  shift
+  local depth=$1
+  shift
+  local back=${1:-}
+  local target
+
+  if [[ $depth -eq 0 ]]
+   then
+    target=${prefix}file.txt
+    echo "Hello symlinked world!" >$target
+    date >>$target
+   else
+    target=${prefix}dir
+    mkdir $target
+   fi
+
+  local origtarget=$target
+  local mylinkcount=$linkcount
+
+  while [[ $mylinkcount -gt 0 ]]
+   do
+    local newtarget=${prefix}link$mylinkcount
+    mylinkcount=$[ mylinkcount - 1 ]
+    ln -s $back$target $newtarget
+    target=$newtarget
+   done
+
+  if [[ $depth -gt 0 ]]
+   then
+    cd $origtarget
+    back=../${back}${prefix}link1/
+    chainlinks $linkcount $[ depth - 1 ] $back
+    cd ..
+   fi
+
+  local mydepth=$depth
+  local whatsthis=""
+
+  while [[ $mydepth -ge 0 ]]
+   do
+    whatsthis=/${prefix}link1$whatsthis
+    mydepth=$[ mydepth - 1 ]
+   done
+
+  ln -s .$whatsthis ${prefix}whatsthis.txt
+}
+
+isnum "$1" "linkcount (1st parameter)" 1
+isnum "$2" "depth (2nd parameter)"
+chainlinks $1 $2 || exit $? ; exit 0
